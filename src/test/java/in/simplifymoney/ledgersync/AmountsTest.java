@@ -8,8 +8,6 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Amount extraction.
- *
- * This suite is green. It has been green since it was written.
  */
 class AmountsTest {
 
@@ -28,6 +26,28 @@ class AmountsTest {
     }
 
     @Test
+    void readsWholeRupeesWithADotBeforeTheBalance() {
+        assertEquals(new BigDecimal("5.00"),
+                Amounts.first("Rs.5 debited from a/c **4821 on 04-07-26 at "
+                        + "07:19 to UPI/WATER CAN. Avl Bal: Rs.92,213.10."));
+    }
+
+    @Test
+    void readsWholeRupeesWithASpaceBeforeTheBalance() {
+        assertEquals(new BigDecimal("20.00"),
+                Amounts.first("Rs 20 debited from a/c **4821 on 06-07-26 at "
+                        + "20:36 to UPI/WATER CAN. Avl Bal: Rs.79,769.69."));
+    }
+
+    @Test
+    void readsWholeRupeesWithAnInrPrefixBeforeTheBalance() {
+        assertEquals(new BigDecimal("90.00"),
+                Amounts.first("Dear Customer, Acct XX9075 is debited with INR 90 "
+                        + "on 08/07/2026 08:27. Info: UPI/MILK BOOTH. "
+                        + "Avl Bal Rs.54,538.09"));
+    }
+
+    @Test
     void readsThousandsSeparators() {
         assertEquals(new BigDecimal("45000.00"),
                 Amounts.first("Rs.45,000.00 credited to a/c **4821 on 01-07-26 at "
@@ -39,6 +59,20 @@ class AmountsTest {
         assertEquals(new BigDecimal("89032.61"),
                 Amounts.statedBalance("Rs.2,499.50 debited from a/c **4821 on "
                         + "04-07-26 at 20:24 to AMAZON PAY. Avl Bal: Rs.89,032.61."));
+    }
+
+    @Test
+    void doesNotTreatCardAvailableLimitAsAnAccountBalance() {
+        assertEquals(null, Amounts.statedBalance("Rs 1,249.99 spent on HDFC Bank Card x3310 "
+                + "at BLINKIT on 03-07-26 11:51. Avl Limit: Rs.196,250.03."));
+        assertEquals(new BigDecimal("1249.99"),
+                Amounts.first("Rs 1,249.99 spent on HDFC Bank Card x3310 "
+                        + "at BLINKIT on 03-07-26 11:51. Avl Limit: Rs.196,250.03."));
+    }
+
+    @Test
+    void doesNotTreatALabeledBalanceAsATransactionAmount() {
+        assertEquals(null, Amounts.first("Avl Bal: Rs.89,032.61"));
     }
 
     @Test

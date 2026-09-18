@@ -78,6 +78,27 @@ public final class SqlLedgerStore implements LedgerStore, AutoCloseable {
 
     @Override
     public void save(NormalizedTxn t) {
+        insert(t);
+    }
+
+    @Override
+    public void replaceAll(List<NormalizedTxn> transactions) {
+        try {
+            conn.setAutoCommit(false);
+            try (Statement statement = conn.createStatement()) {
+                statement.executeUpdate("DELETE FROM ledger");
+            }
+            for (NormalizedTxn transaction : transactions) insert(transaction);
+            conn.commit();
+        } catch (SQLException | RuntimeException e) {
+            try { conn.rollback(); } catch (SQLException ignored) { }
+            throw new IllegalStateException("could not replace the canonical ledger", e);
+        } finally {
+            try { conn.setAutoCommit(true); } catch (SQLException ignored) { }
+        }
+    }
+
+    private void insert(NormalizedTxn t) {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO ledger(account_last4, occurred_at, direction, amount,"
                         + " category, merchant, source_message_ids)"

@@ -172,7 +172,30 @@ many it returned, at 100,000 transactions.** DynamoDB gives you `ScannedCount`
 and `Count`; MongoDB gives you `totalDocsExamined` and `nReturned`. Put the six
 numbers in your README.
 
-Then:
+### H2DocumentStore Implementation
+
+**Design choice:** H2 in-process relational database with JSON documents stored as CLOB.
+
+**Why H2:** Provides ACID guarantees, deterministic ordering for idempotent operations, no external
+dependencies (runs in process), and excellent support for testing. The trade-off is that it is
+single-machine only, but suitable for this pilot.
+
+**Document schema:** One row per canonical transaction in `txn_documents` table, keyed by
+`TxnDocumentId` (derived from CanonicalKey: account_last4|occurred_at|direction|amount).
+The transaction is stored both as denormalized columns (for indexing) and as a JSON CLOB
+(for schema flexibility). Message IDs are indexed in a separate `message_lookup` table for
+O(1) reverse lookup. Account category totals are cached in `account_category_totals` for
+efficient category-total queries.
+
+**Query patterns:** All three access patterns are served directly:
+
+- **Q1: forAccountMonth** — Index scan on `(account_last4, year_month, occurred_at DESC)`
+- **Q2: categoryTotals** — Direct row lookup on account_last4 PK; totals cached in `account_category_totals` and maintained on every upsert
+- **Q3: byMessageId** — Message ID is PK in `message_lookup` table; single join to txn_documents
+
+**Engine-level metrics:** H2 2.x does not expose reliable database-engine execution statistics equivalent to DynamoDB's `ScannedCount`/`Count` or MongoDB's `totalDocsExamined`/`nReturned`. The `QueryMetrics` class in this implementation records application-level result-set consumption (rows fetched and processed), not engine-level row scans. For true engine-level metrics at scale, DynamoDB or MongoDB would be required.
+
+**Backfill and ConsistencyChecker:**
 
 - **`Backfill`** moves what is already in SQL across. Two things to know: the
   SQL store has been running without a uniqueness guarantee for a long time, and
